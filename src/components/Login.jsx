@@ -1,30 +1,29 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { loginSchema } from '../schemas/bookSchema'
 import { useAuth } from '../context/AuthContext'
 
 function Login() {
-  const [formData, setFormData] = useState({
-    username: '',
-    password: ''
-  })
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const { login } = useAuth()
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
+  const { 
+    register, 
+    handleSubmit, 
+    formState: { errors } 
+  } = useForm({
+    resolver: zodResolver(loginSchema)
+  })
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
+  const onSubmit = async (data) => {
     setLoading(true)
     setError('')
 
-    const result = await login(formData.username, formData.password)
+    const result = await login(data.username, data.password)
     
     if (result.success) {
       navigate('/books')
@@ -42,29 +41,31 @@ function Login() {
         
         {error && <div className="error">{error}</div>}
         
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit(onSubmit)}>
           <div className="form-group">
             <label>ইউজারনেম</label>
             <input
               type="text"
-              name="username"
-              value={formData.username}
-              onChange={handleChange}
-              required
+              {...register('username')}
               placeholder="আপনার ইউজারনেম"
+              className={errors.username ? 'error-input' : ''}
             />
+            {errors.username && (
+              <p className="error-text">{errors.username.message}</p>
+            )}
           </div>
           
           <div className="form-group">
             <label>পাসওয়ার্ড</label>
             <input
               type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
+              {...register('password')}
               placeholder="আপনার পাসওয়ার্ড"
+              className={errors.password ? 'error-input' : ''}
             />
+            {errors.password && (
+              <p className="error-text">{errors.password.message}</p>
+            )}
           </div>
           
           <button type="submit" className="btn-submit" disabled={loading}>

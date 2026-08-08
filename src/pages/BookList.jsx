@@ -1,15 +1,28 @@
 import React, { useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { useBooks, useCreateBook, useUpdateBook, useDeleteBook } from '../hooks/useBooks'
+import { bookSchema } from '../schemas/bookSchema'
 import { Toaster } from 'react-hot-toast'
 import '../App.css'
 
 function BookList() {
-  const [formData, setFormData] = useState({
-    book_name: '',
-    price: '',
-    description: ''
-  })
   const [editingId, setEditingId] = useState(null)
+
+  // ✅ React Hook Form
+  const { 
+    register, 
+    handleSubmit, 
+    reset, 
+    formState: { errors, isSubmitting } 
+  } = useForm({
+    resolver: zodResolver(bookSchema),
+    defaultValues: {
+      book_name: '',
+      price: '',
+      description: ''
+    }
+  })
 
   // ✅ React Query Hooks
   const { data: books, isLoading, error } = useBooks()
@@ -18,27 +31,25 @@ function BookList() {
   const deleteBook = useDeleteBook()
 
   // ➕ বই যোগ/আপডেট
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
+  const onSubmit = async (data) => {
     if (editingId) {
       // ✏️ আপডেট
       await updateBook.mutateAsync({
         id: editingId,
-        data: formData
+        data: data
       })
       setEditingId(null)
     } else {
       // ➕ নতুন যোগ
-      await createBook.mutateAsync(formData)
+      await createBook.mutateAsync(data)
     }
     
-    setFormData({ book_name: '', price: '', description: '' })
+    reset() // ফর্ম রিসেট করুন
   }
 
-  // ✏️ এডিট
+  // ✏️ এডিট (ফর্মে ডেটা সেট করুন)
   const handleEdit = (book) => {
-    setFormData({
+    reset({
       book_name: book.book_name,
       price: book.price,
       description: book.description
@@ -54,18 +65,10 @@ function BookList() {
     }
   }
 
-  // 📝 ইনপুট পরিবর্তন
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
-
   // ❌ এডিট ক্যানসেল
   const cancelEdit = () => {
     setEditingId(null)
-    setFormData({ book_name: '', price: '', description: '' })
+    reset()
   }
 
   // ⏳ লোডিং
@@ -86,50 +89,55 @@ function BookList() {
       
       <div className="form-container">
         <h2>{editingId ? '✏️ বই আপডেট করুন' : '➕ নতুন বই যোগ করুন'}</h2>
-        <form onSubmit={handleSubmit}>
+        
+        <form onSubmit={handleSubmit(onSubmit)}>
           <div className="form-group">
             <label>বইয়ের নাম</label>
             <input
               type="text"
-              name="book_name"
-              value={formData.book_name}
-              onChange={handleChange}
-              required
+              {...register('book_name')}
               placeholder="বইয়ের নাম লিখুন"
+              className={errors.book_name ? 'error-input' : ''}
             />
+            {errors.book_name && (
+              <p className="error-text">{errors.book_name.message}</p>
+            )}
           </div>
           
           <div className="form-group">
             <label>মূল্য (৳)</label>
             <input
               type="number"
-              name="price"
-              value={formData.price}
-              onChange={handleChange}
-              required
               step="0.01"
+              {...register('price')}
               placeholder="মূল্য লিখুন"
+              className={errors.price ? 'error-input' : ''}
             />
+            {errors.price && (
+              <p className="error-text">{errors.price.message}</p>
+            )}
           </div>
           
           <div className="form-group">
             <label>বর্ণনা</label>
             <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
+              {...register('description')}
               placeholder="বইয়ের বর্ণনা লিখুন"
               rows="3"
+              className={errors.description ? 'error-input' : ''}
             />
+            {errors.description && (
+              <p className="error-text">{errors.description.message}</p>
+            )}
           </div>
           
           <div className="button-group">
             <button 
               type="submit" 
               className="btn-submit"
-              disabled={createBook.isPending || updateBook.isPending}
+              disabled={isSubmitting}
             >
-              {createBook.isPending || updateBook.isPending 
+              {isSubmitting 
                 ? '⏳ লোড হচ্ছে...' 
                 : editingId ? 'আপডেট করুন' : 'যোগ করুন'
               }
