@@ -5,6 +5,7 @@ import { useBooks, useCreateBook, useUpdateBook, useDeleteBook } from '../hooks/
 import { bookSchema } from '../schemas/bookSchema'
 import { Toaster } from 'react-hot-toast'
 import SearchBar from '../components/SearchBar'
+import Pagination from '../components/Pagination'
 import '../App.css'
 
 function BookList() {
@@ -12,6 +13,7 @@ function BookList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPrice, setFilterPrice] = useState('all')
   const [sortBy, setSortBy] = useState('name')
+  const [currentPage, setCurrentPage] = useState(1)
 
   // React Hook Form
   const { 
@@ -28,13 +30,17 @@ function BookList() {
     }
   })
 
-  // React Query Hooks
-  const { data: books, isLoading, error } = useBooks()
+  // ✅ React Query (Pagination সহ)
+  const { data, isLoading, error } = useBooks(currentPage)
+  const books = data?.books || []
+  const totalPages = data?.totalPages || 1
+  const totalBooks = data?.count || 0
+
   const createBook = useCreateBook()
   const updateBook = useUpdateBook()
   const deleteBook = useDeleteBook()
 
-  // ✅ Search, Filter & Sort Logic (useMemo for performance)
+  // ✅ Search, Filter & Sort Logic (শুধু বর্তমান পেজের বইগুলোর উপর)
   const filteredAndSortedBooks = useMemo(() => {
     if (!books) return []
 
@@ -108,6 +114,12 @@ function BookList() {
   const cancelEdit = () => {
     setEditingId(null)
     reset()
+  }
+
+  // 📄 পেজ চেঞ্জ
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   // ⏳ লোডিং
@@ -204,8 +216,8 @@ function BookList() {
       {/* 📖 Result Count */}
       <div className="result-count">
         <p>
-          {filteredAndSortedBooks.length} টি বই পাওয়া গেছে 
-          {searchTerm && ` ( "${searchTerm}" অনুসারে )`}
+          {totalBooks} টি বই | পেজ {currentPage} / {totalPages}
+          {searchTerm && ` | "${searchTerm}" অনুসারে ${filteredAndSortedBooks.length} টি পাওয়া গেছে`}
         </p>
       </div>
       
@@ -216,31 +228,40 @@ function BookList() {
             {searchTerm ? '😢 আপনার খোঁজা বইটি পাওয়া যায়নি' : '😢 কোনো বই নেই'}
           </div>
         ) : (
-          <div className="books-grid">
-            {filteredAndSortedBooks.map((book) => (
-              <div key={book.id} className="book-card">
-                <h3>{book.book_name}</h3>
-                <p className="price">💰 ৳{book.price}</p>
-                <p className="description">{book.description}</p>
-                <div className="card-actions">
-                  <button 
-                    className="btn-edit" 
-                    onClick={() => handleEdit(book)}
-                    disabled={deleteBook.isPending}
-                  >
-                    ✏️ এডিট
-                  </button>
-                  <button 
-                    className="btn-delete" 
-                    onClick={() => handleDelete(book.id)}
-                    disabled={deleteBook.isPending}
-                  >
-                    {deleteBook.isPending ? '⏳' : '🗑️ ডিলিট'}
-                  </button>
+          <>
+            <div className="books-grid">
+              {filteredAndSortedBooks.map((book) => (
+                <div key={book.id} className="book-card">
+                  <h3>{book.book_name}</h3>
+                  <p className="price">💰 ৳{book.price}</p>
+                  <p className="description">{book.description}</p>
+                  <div className="card-actions">
+                    <button 
+                      className="btn-edit" 
+                      onClick={() => handleEdit(book)}
+                      disabled={deleteBook.isPending}
+                    >
+                      ✏️ এডিট
+                    </button>
+                    <button 
+                      className="btn-delete" 
+                      onClick={() => handleDelete(book.id)}
+                      disabled={deleteBook.isPending}
+                    >
+                      {deleteBook.isPending ? '⏳' : '🗑️ ডিলিট'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            
+            {/* 📄 Pagination */}
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </>
         )}
       </div>
     </div>

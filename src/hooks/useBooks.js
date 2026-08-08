@@ -17,10 +17,17 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// 📚 সব বই fetch
-const fetchBooks = async () => {
-  const response = await axios.get(API_URL)
-  return response.data
+// 📚 সব বই fetch (Pagination সহ)
+const fetchBooks = async (page = 1) => {
+  const response = await axios.get(`${API_URL}?page=${page}`)
+  return {
+    books: response.data.results || [],
+    count: response.data.count || 0,
+    next: response.data.next,
+    previous: response.data.previous,
+    currentPage: page,
+    totalPages: Math.ceil((response.data.count || 0) / 5) // 5 = page_size
+  }
 }
 
 // ➕ নতুন বই যোগ
@@ -41,11 +48,12 @@ const deleteBook = async (id) => {
   return id
 }
 
-// 🔥 Custom Hook: সব বই
-export const useBooks = () => {
+// 🔥 Custom Hook: সব বই (Pagination সহ)
+export const useBooks = (page = 1) => {
   return useQuery({
-    queryKey: ['books'],
-    queryFn: fetchBooks,
+    queryKey: ['books', page],
+    queryFn: () => fetchBooks(page),
+    keepPreviousData: true, // ✅ পেজ চেঞ্জের সময় আগের ডেটা রাখে
   })
 }
 
