@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast'
 const API_URL = 'http://localhost:8000/book_list/'
 const API_DETAIL_URL = (id) => `http://localhost:8000/book/${id}/`
 
-// ✅ Axios Interceptor (Token যোগ করুন)
+// Axios Interceptor
 axios.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token')
@@ -17,31 +17,31 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// 📚 সব বই fetch করার ফাংশন
+// 📚 সব বই fetch
 const fetchBooks = async () => {
   const response = await axios.get(API_URL)
   return response.data
 }
 
-// ➕ নতুন বই যোগ করার ফাংশন
+// ➕ নতুন বই যোগ
 const createBook = async (bookData) => {
   const response = await axios.post(API_URL, bookData)
   return response.data
 }
 
-// ✏️ বই আপডেট করার ফাংশন
+// ✏️ বই আপডেট
 const updateBook = async ({ id, data }) => {
   const response = await axios.put(API_DETAIL_URL(id), data)
   return response.data
 }
 
-// 🗑️ বই ডিলিট করার ফাংশন
+// 🗑️ বই ডিলিট
 const deleteBook = async (id) => {
   await axios.delete(API_DETAIL_URL(id))
   return id
 }
 
-// 🔥 Custom Hook: সব বই fetch করা
+// 🔥 Custom Hook: সব বই
 export const useBooks = () => {
   return useQuery({
     queryKey: ['books'],
@@ -49,7 +49,7 @@ export const useBooks = () => {
   })
 }
 
-// 🔥 Custom Hook: নতুন বই যোগ করা
+// 🔥 Custom Hook: নতুন বই যোগ
 export const useCreateBook = () => {
   const queryClient = useQueryClient()
   
@@ -66,7 +66,7 @@ export const useCreateBook = () => {
   })
 }
 
-// 🔥 Custom Hook: বই আপডেট করা
+// 🔥 Custom Hook: বই আপডেট
 export const useUpdateBook = () => {
   const queryClient = useQueryClient()
   
@@ -83,7 +83,7 @@ export const useUpdateBook = () => {
   })
 }
 
-// 🔥 Custom Hook: বই ডিলিট করা
+// 🔥 Custom Hook: বই ডিলিট
 export const useDeleteBook = () => {
   const queryClient = useQueryClient()
   

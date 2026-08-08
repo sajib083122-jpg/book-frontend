@@ -1,15 +1,19 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useBooks, useCreateBook, useUpdateBook, useDeleteBook } from '../hooks/useBooks'
 import { bookSchema } from '../schemas/bookSchema'
 import { Toaster } from 'react-hot-toast'
+import SearchBar from '../components/SearchBar'
 import '../App.css'
 
 function BookList() {
   const [editingId, setEditingId] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterPrice, setFilterPrice] = useState('all')
+  const [sortBy, setSortBy] = useState('name')
 
-  // ✅ React Hook Form
+  // React Hook Form
   const { 
     register, 
     handleSubmit, 
@@ -24,30 +28,65 @@ function BookList() {
     }
   })
 
-  // ✅ React Query Hooks
+  // React Query Hooks
   const { data: books, isLoading, error } = useBooks()
   const createBook = useCreateBook()
   const updateBook = useUpdateBook()
   const deleteBook = useDeleteBook()
 
+  // ✅ Search, Filter & Sort Logic (useMemo for performance)
+  const filteredAndSortedBooks = useMemo(() => {
+    if (!books) return []
+
+    let result = [...books]
+
+    // 🔍 Search
+    if (searchTerm.trim()) {
+      result = result.filter(book =>
+        book.book_name.toLowerCase().includes(searchTerm.toLowerCase().trim())
+      )
+    }
+
+    // 🏷️ Price Filter
+    if (filterPrice !== 'all') {
+      result = result.filter(book => {
+        const price = parseFloat(book.price)
+        if (filterPrice === 'low') return price >= 0 && price <= 500
+        if (filterPrice === 'medium') return price > 500 && price <= 2000
+        if (filterPrice === 'high') return price > 2000
+        return true
+      })
+    }
+
+    // 📊 Sort
+    if (sortBy === 'name') {
+      result.sort((a, b) => a.book_name.localeCompare(b.book_name))
+    } else if (sortBy === 'name_desc') {
+      result.sort((a, b) => b.book_name.localeCompare(a.book_name))
+    } else if (sortBy === 'price_low') {
+      result.sort((a, b) => parseFloat(a.price) - parseFloat(b.price))
+    } else if (sortBy === 'price_high') {
+      result.sort((a, b) => parseFloat(b.price) - parseFloat(a.price))
+    }
+
+    return result
+  }, [books, searchTerm, filterPrice, sortBy])
+
   // ➕ বই যোগ/আপডেট
   const onSubmit = async (data) => {
     if (editingId) {
-      // ✏️ আপডেট
       await updateBook.mutateAsync({
         id: editingId,
         data: data
       })
       setEditingId(null)
     } else {
-      // ➕ নতুন যোগ
       await createBook.mutateAsync(data)
     }
-    
-    reset() // ফর্ম রিসেট করুন
+    reset()
   }
 
-  // ✏️ এডিট (ফর্মে ডেটা সেট করুন)
+  // ✏️ এডিট
   const handleEdit = (book) => {
     reset({
       book_name: book.book_name,
@@ -87,6 +126,7 @@ function BookList() {
       
       <h1>📚 আমার বইয়ের লাইব্রেরি</h1>
       
+      {/* 📝 Form */}
       <div className="form-container">
         <h2>{editingId ? '✏️ বই আপডেট করুন' : '➕ নতুন বই যোগ করুন'}</h2>
         
@@ -151,14 +191,33 @@ function BookList() {
         </form>
       </div>
       
+      {/* 🔍 Search & Filter */}
+      <SearchBar
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        filterPrice={filterPrice}
+        setFilterPrice={setFilterPrice}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+      />
+      
+      {/* 📖 Result Count */}
+      <div className="result-count">
+        <p>
+          {filteredAndSortedBooks.length} টি বই পাওয়া গেছে 
+          {searchTerm && ` ( "${searchTerm}" অনুসারে )`}
+        </p>
+      </div>
+      
+      {/* 📚 Book List */}
       <div className="book-list">
-        <h2>📖 বইয়ের তালিকা ({books?.length || 0})</h2>
-        
-        {books?.length === 0 ? (
-          <div className="empty">😢 কোনো বই নেই</div>
+        {filteredAndSortedBooks.length === 0 ? (
+          <div className="empty">
+            {searchTerm ? '😢 আপনার খোঁজা বইটি পাওয়া যায়নি' : '😢 কোনো বই নেই'}
+          </div>
         ) : (
           <div className="books-grid">
-            {books?.map((book) => (
+            {filteredAndSortedBooks.map((book) => (
               <div key={book.id} className="book-card">
                 <h3>{book.book_name}</h3>
                 <p className="price">💰 ৳{book.price}</p>
