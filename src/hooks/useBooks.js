@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
 import axios from 'axios'
 import { toast } from 'react-hot-toast'
 
@@ -17,16 +17,13 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// 📚 সব বই fetch (Pagination সহ)
-const fetchBooks = async (page = 1) => {
-  const response = await axios.get(`${API_URL}?page=${page}`)
+// 📚 সব বই fetch (Infinite Scroll এর জন্য)
+const fetchBooks = async ({ pageParam = 1 }) => {
+  const response = await axios.get(`${API_URL}?page=${pageParam}`)
   return {
     books: response.data.results || [],
-    count: response.data.count || 0,
-    next: response.data.next,
-    previous: response.data.previous,
-    currentPage: page,
-    totalPages: Math.ceil((response.data.count || 0) / 5) // 5 = page_size
+    nextPage: response.data.next ? pageParam + 1 : undefined,
+    totalCount: response.data.count || 0,
   }
 }
 
@@ -48,12 +45,13 @@ const deleteBook = async (id) => {
   return id
 }
 
-// 🔥 Custom Hook: সব বই (Pagination সহ)
-export const useBooks = (page = 1) => {
-  return useQuery({
-    queryKey: ['books', page],
-    queryFn: () => fetchBooks(page),
-    keepPreviousData: true, // ✅ পেজ চেঞ্জের সময় আগের ডেটা রাখে
+// 🔥 Custom Hook: Infinite Scroll এর জন্য
+export const useInfiniteBooks = () => {
+  return useInfiniteQuery({
+    queryKey: ['books'],
+    queryFn: fetchBooks,
+    getNextPageParam: (lastPage) => lastPage.nextPage,
+    initialPageParam: 1,
   })
 }
 
@@ -102,7 +100,7 @@ export const useDeleteBook = () => {
       toast.success('✅ বই সফলভাবে ডিলিট হয়েছে!')
     },
     onError: (error) => {
-      toast.error('❌ বই ডিলিট করতে সমস্যা হয়েছে')
+      toast.error('❌ বই ডিলিট করতে 문제 হয়েছে')
       console.error(error)
     }
   })

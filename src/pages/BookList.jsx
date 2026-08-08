@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useBooks, useCreateBook, useUpdateBook, useDeleteBook } from '../hooks/useBooks'
+import { useInfiniteBooks, useCreateBook, useUpdateBook, useDeleteBook } from '../hooks/useBooks'
 import { bookSchema } from '../schemas/bookSchema'
 import { Toaster } from 'react-hot-toast'
+import { useInView } from 'react-intersection-observer'
 import SearchBar from '../components/SearchBar'
-import Pagination from '../components/Pagination'
 import '../App.css'
 
 function BookList() {
@@ -13,7 +13,36 @@ function BookList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPrice, setFilterPrice] = useState('all')
   const [sortBy, setSortBy] = useState('name')
-  const [currentPage, setCurrentPage] = useState(1)
+
+  // ✅ Infinite Scroll Hook
+  const { ref, inView } = useInView({
+    threshold: 0.1,
+    triggerOnce: false,
+  })
+
+  // ✅ React Query Infinite Query
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    fetchNextPage,
+    hasNextPage,
+    error,
+  } = useInfiniteBooks()
+
+  // 🔄 যখন শেষ আইটেম ভিউতে আসে তখন নতুন পেজ লোড করুন
+  useEffect(() => {
+    if (inView && hasNextPage && !isFetchingNextPage) {
+      fetchNextPage()
+    }
+  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage])
+
+  // 📚 সব বই সংগ্রহ করুন (সব পেজ থেকে)
+  const allBooks = useMemo(() => {
+    return data?.pages?.flatMap((page) => page.books) || []
+  }, [data])
+
+  const totalBooks = data?.pages?.[0]?.totalCount || 0
 
   // React Hook Form
   const { 
@@ -30,21 +59,15 @@ function BookList() {
     }
   })
 
-  // ✅ React Query (Pagination সহ)
-  const { data, isLoading, error } = useBooks(currentPage)
-  const books = data?.books || []
-  const totalPages = data?.totalPages || 1
-  const totalBooks = data?.count || 0
-
   const createBook = useCreateBook()
   const updateBook = useUpdateBook()
   const deleteBook = useDeleteBook()
 
-  // ✅ Search, Filter & Sort Logic (শুধু বর্তমান পেজের বইগুলোর উপর)
+  // ✅ Search, Filter & Sort Logic
   const filteredAndSortedBooks = useMemo(() => {
-    if (!books) return []
+    if (!allBooks) return []
 
-    let result = [...books]
+    let result = [...allBooks]
 
     // 🔍 Search
     if (searchTerm.trim()) {
@@ -76,7 +99,7 @@ function BookList() {
     }
 
     return result
-  }, [books, searchTerm, filterPrice, sortBy])
+  }, [allBooks, searchTerm, filterPrice, sortBy])
 
   // ➕ বই যোগ/আপডেট
   const onSubmit = async (data) => {
@@ -114,12 +137,6 @@ function BookList() {
   const cancelEdit = () => {
     setEditingId(null)
     reset()
-  }
-
-  // 📄 পেজ চেঞ্জ
-  const handlePageChange = (page) => {
-    setCurrentPage(page)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   // ⏳ লোডিং
@@ -216,7 +233,7 @@ function BookList() {
       {/* 📖 Result Count */}
       <div className="result-count">
         <p>
-          {totalBooks} টি বই | পেজ {currentPage} / {totalPages}
+          {totalBooks} টি বই 
           {searchTerm && ` | "${searchTerm}" অনুসারে ${filteredAndSortedBooks.length} টি পাওয়া গেছে`}
         </p>
       </div>
@@ -230,8 +247,12 @@ function BookList() {
         ) : (
           <>
             <div className="books-grid">
-              {filteredAndSortedBooks.map((book) => (
-                <div key={book.id} className="book-card">
+              {filteredAndSortedBooks.map((book, index) => (
+                <div 
+                  key={book.id || index} 
+                  className="book-card"
+                  ref={index === filteredAndSortedBooks.length - 1 ? ref : null}
+                >
                   <h3>{book.book_name}</h3>
                   <p className="price">💰 ৳{book.price}</p>
                   <p className="description">{book.description}</p>
@@ -255,12 +276,20 @@ function BookList() {
               ))}
             </div>
             
-            {/* 📄 Pagination */}
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={handlePageChange}
-            />
+            {/* ⏳ Loading Indicator (Infinite Scroll) */}
+            {isFetchingNextPage && (
+              <div className="loading-more">
+                <div className="spinner"></div>
+                <p>⏳ আরও বই লোড হচ্ছে...</p>
+              </div>
+            )}
+            
+            {/* 🏁 End of List */}
+            {!hasNextPage && allBooks.length > 0 && (
+              <div className="end-of-list">
+                <p>🏁 সব বই দেখানো হয়েছে</p>
+              </div>
+            )}
           </>
         )}
       </div>
