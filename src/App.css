@@ -291,3 +291,18 @@ h2 {
   text-decoration: none;
   font-weight: 600;
 }
+
+/* ✅ Navbar User Name */
+.nav-center {
+  flex: 1;
+  text-align: center;
+}
+
+.user-name {
+  color: white;
+  font-weight: bold;
+  font-size: 1.1rem;
+  background: rgba(255,255,255,0.2);
+  padding: 5px 15px;
+  border-radius: 20px;
+}

@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import axios from 'axios'
+import React, { useState } from 'react'
+import { useBooks, useCreateBook, useUpdateBook, useDeleteBook } from '../hooks/useBooks'
+import { Toaster } from 'react-hot-toast'
 import '../App.css'
 
 function BookList() {
-  const [books, setBooks] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
   const [formData, setFormData] = useState({
     book_name: '',
     price: '',
@@ -13,58 +11,32 @@ function BookList() {
   })
   const [editingId, setEditingId] = useState(null)
 
-  const API_URL = 'http://localhost:8000/book_list/'
-  const API_DETAIL_URL = (id) => `http://localhost:8000/book/${id}/`
+  // ✅ React Query Hooks
+  const { data: books, isLoading, error } = useBooks()
+  const createBook = useCreateBook()
+  const updateBook = useUpdateBook()
+  const deleteBook = useDeleteBook()
 
-  // ✅ Axios Interceptor - Token যোগ করুন
-  axios.interceptors.request.use(
-    (config) => {
-      const token = localStorage.getItem('access_token')
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
-      }
-      return config
-    },
-    (error) => Promise.reject(error)
-  )
-
-  const fetchBooks = async () => {
-    try {
-      setLoading(true)
-      const response = await axios.get(API_URL)
-      setBooks(response.data)
-      setError('')
-    } catch (err) {
-      if (err.response?.status === 401) {
-        setError('❌ লগইন করুন')
-      } else {
-        setError('বই লোড করতে সমস্যা হয়েছে')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchBooks()
-  }, [])
-
+  // ➕ বই যোগ/আপডেট
   const handleSubmit = async (e) => {
     e.preventDefault()
-    try {
-      if (editingId) {
-        await axios.put(API_DETAIL_URL(editingId), formData)
-        setEditingId(null)
-      } else {
-        await axios.post(API_URL, formData)
-      }
-      setFormData({ book_name: '', price: '', description: '' })
-      fetchBooks()
-    } catch (err) {
-      setError('ডেটা সেভ করতে সমস্যা হয়েছে')
+    
+    if (editingId) {
+      // ✏️ আপডেট
+      await updateBook.mutateAsync({
+        id: editingId,
+        data: formData
+      })
+      setEditingId(null)
+    } else {
+      // ➕ নতুন যোগ
+      await createBook.mutateAsync(formData)
     }
+    
+    setFormData({ book_name: '', price: '', description: '' })
   }
 
+  // ✏️ এডিট
   const handleEdit = (book) => {
     setFormData({
       book_name: book.book_name,
@@ -75,17 +47,14 @@ function BookList() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleDelete = async (id) => {
+  // 🗑️ ডিলিট
+  const handleDelete = (id) => {
     if (window.confirm('আপনি কি এই বই ডিলিট করতে চান?')) {
-      try {
-        await axios.delete(API_DETAIL_URL(id))
-        fetchBooks()
-      } catch (err) {
-        setError('ডিলিট করতে সমস্যা হয়েছে')
-      }
+      deleteBook.mutate(id)
     }
   }
 
+  // 📝 ইনপুট পরিবর্তন
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -93,16 +62,27 @@ function BookList() {
     })
   }
 
+  // ❌ এডিট ক্যানসেল
   const cancelEdit = () => {
     setEditingId(null)
     setFormData({ book_name: '', price: '', description: '' })
   }
 
+  // ⏳ লোডিং
+  if (isLoading) {
+    return <div className="loading">⏳ বই লোড হচ্ছে...</div>
+  }
+
+  // ❌ এরর
+  if (error) {
+    return <div className="error">❌ {error.message}</div>
+  }
+
   return (
     <div className="app-container">
-      <h1>📚 আমার বইয়ের লাইব্রেরি</h1>
+      <Toaster position="top-right" />
       
-      {error && <div className="error">{error}</div>}
+      <h1>📚 আমার বইয়ের লাইব্রেরি</h1>
       
       <div className="form-container">
         <h2>{editingId ? '✏️ বই আপডেট করুন' : '➕ নতুন বই যোগ করুন'}</h2>
@@ -144,8 +124,15 @@ function BookList() {
           </div>
           
           <div className="button-group">
-            <button type="submit" className="btn-submit">
-              {editingId ? 'আপডেট করুন' : 'যোগ করুন'}
+            <button 
+              type="submit" 
+              className="btn-submit"
+              disabled={createBook.isPending || updateBook.isPending}
+            >
+              {createBook.isPending || updateBook.isPending 
+                ? '⏳ লোড হচ্ছে...' 
+                : editingId ? 'আপডেট করুন' : 'যোগ করুন'
+              }
             </button>
             {editingId && (
               <button type="button" className="btn-cancel" onClick={cancelEdit}>
@@ -157,25 +144,31 @@ function BookList() {
       </div>
       
       <div className="book-list">
-        <h2>📖 বইয়ের তালিকা ({books.length})</h2>
+        <h2>📖 বইয়ের তালিকা ({books?.length || 0})</h2>
         
-        {loading ? (
-          <div className="loading">⏳ লোড হচ্ছে...</div>
-        ) : books.length === 0 ? (
+        {books?.length === 0 ? (
           <div className="empty">😢 কোনো বই নেই</div>
         ) : (
           <div className="books-grid">
-            {books.map((book) => (
+            {books?.map((book) => (
               <div key={book.id} className="book-card">
                 <h3>{book.book_name}</h3>
                 <p className="price">💰 ৳{book.price}</p>
                 <p className="description">{book.description}</p>
                 <div className="card-actions">
-                  <button className="btn-edit" onClick={() => handleEdit(book)}>
+                  <button 
+                    className="btn-edit" 
+                    onClick={() => handleEdit(book)}
+                    disabled={deleteBook.isPending}
+                  >
                     ✏️ এডিট
                   </button>
-                  <button className="btn-delete" onClick={() => handleDelete(book.id)}>
-                    🗑️ ডিলিট
+                  <button 
+                    className="btn-delete" 
+                    onClick={() => handleDelete(book.id)}
+                    disabled={deleteBook.isPending}
+                  >
+                    {deleteBook.isPending ? '⏳' : '🗑️ ডিলিট'}
                   </button>
                 </div>
               </div>
