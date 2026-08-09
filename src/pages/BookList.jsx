@@ -15,7 +15,7 @@ function BookList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPrice, setFilterPrice] = useState('all')
   const [sortBy, setSortBy] = useState('name')
-  const [imageFile, setImageFile] = useState(null)
+  const [imageFile, setImageFile] = useState(null) // ✅ File বা URL
   const [selectedBook, setSelectedBook] = useState(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
@@ -29,6 +29,8 @@ function BookList() {
     register, 
     handleSubmit, 
     reset, 
+    setValue,
+    watch,
     formState: { errors, isSubmitting } 
   } = useForm({
     resolver: zodResolver(bookSchema),
@@ -99,7 +101,7 @@ function BookList() {
     return result
   }, [allBooks, searchTerm, filterPrice, sortBy])
 
-  // ✅ ফর্ম সাবমিট - সব ফিল্ড ক্লিয়ার হবে
+  // ✅ ফর্ম সাবমিট
   const onSubmit = async (data) => {
     const formData = {
       book_name: data.book_name,
@@ -115,33 +117,49 @@ function BookList() {
           id: editingId,
           data: formData
         })
+        
+        // ✅ আপডেটের পর ক্লিয়ার
         setEditingId(null)
+        setImageFile(null) // ইমেজ ক্লিয়ার
+        reset({
+          book_name: '',
+          price: '',
+          description: ''
+        })
+        
       } else {
         // ➕ নতুন যোগ
         await createBook.mutateAsync(formData)
+        
+        // ✅ যোগের পর ক্লিয়ার
+        setImageFile(null) // ইমেজ ক্লিয়ার
+        reset({
+          book_name: '',
+          price: '',
+          description: ''
+        })
       }
-      
-      // ✅ সব ফিল্ড ক্লিয়ার করুন (ইমেজ সহ)
-      reset() // ফর্ম রিসেট
-      setImageFile(null) // ইমেজ ফিল্ড ক্লিয়ার
       
     } catch (error) {
       console.error('Error:', error)
     }
   }
 
-  // ✏️ এডিট (ফর্মে ডেটা সেট করুন)
+  // ✏️ এডিট - ফর্মে ডেটা সেট করুন
   const handleEdit = (book) => {
+    // ✅ ফর্মে ডেটা সেট করুন
     reset({
       book_name: book.book_name,
       price: book.price,
       description: book.description
     })
-    setImageFile(null) // ইমেজ ফিল্ড ক্লিয়ার
+    
+    // ✅ ইমেজ URL সেট করুন (প্রিভিউ দেখানোর জন্য)
+    const imageUrl = book.cover_image_url || book.cover_image || null
+    setImageFile(imageUrl) // string URL পাঠান
     setEditingId(book.id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
-
 
   // 🗑️ ডিলিট
   const handleDelete = (id) => {
@@ -153,8 +171,12 @@ function BookList() {
   // ❌ এডিট ক্যানসেল
   const cancelEdit = () => {
     setEditingId(null)
-    setImageFile(null) // ইমেজ ফিল্ড ক্লিয়ার
-    reset() // ফর্ম রিসেট
+    setImageFile(null)
+    reset({
+      book_name: '',
+      price: '',
+      description: ''
+    })
   }
 
   // ✅ Book Card Click
@@ -239,7 +261,7 @@ function BookList() {
           <div className="form-group">
             <label>বইয়ের কভার ছবি</label>
             <ImageUpload
-              value={imageFile}
+              value={imageFile} // ✅ File বা URL
               onChange={setImageFile}
               error={errors.cover_image?.message}
             />

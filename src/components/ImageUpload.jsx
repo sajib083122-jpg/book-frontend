@@ -4,13 +4,32 @@ function ImageUpload({ value, onChange, error }) {
   const [preview, setPreview] = useState(null)
   const fileInputRef = useRef(null)
 
-  // ✅ যখন value পরিবর্তন হয় (null হলে) preview ক্লিয়ার করুন
+  // ✅ value প্রপ পরিবর্তন ডিটেক্ট করুন
   useEffect(() => {
-    if (value === null || value === undefined) {
+    console.log('ImageUpload - value changed:', value) // Debugging
+    
+    // ✅ value null বা undefined হলে ক্লিয়ার করুন
+    if (value === null || value === undefined || value === '') {
       setPreview(null)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
+      return
+    }
+    
+    // ✅ value যদি string হয় (ইউআরএল) তাহলে প্রিভিউ দেখান
+    if (typeof value === 'string' && value) {
+      setPreview(value)
+      return
+    }
+    
+    // ✅ value যদি File object হয় তাহলে প্রিভিউ দেখান
+    if (value instanceof File) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setPreview(reader.result)
+      }
+      reader.readAsDataURL(value)
     }
   }, [value])
 
@@ -42,7 +61,7 @@ function ImageUpload({ value, onChange, error }) {
 
   const handleRemoveImage = () => {
     setPreview(null)
-    onChange(null) // ✅ null পাঠান
+    onChange(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -83,13 +102,6 @@ function ImageUpload({ value, onChange, error }) {
       />
       
       {error && <p className="error-text">{error}</p>}
-      
-      {value && typeof value === 'string' && !preview && (
-        <div className="existing-image">
-          <p>বর্তমান ছবি:</p>
-          <img src={value} alt="Current" />
-        </div>
-      )}
     </div>
   )
 }
