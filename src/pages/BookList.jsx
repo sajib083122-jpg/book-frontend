@@ -6,6 +6,7 @@ import { bookSchema } from '../schemas/bookSchema'
 import { Toaster } from 'react-hot-toast'
 import { useInView } from 'react-intersection-observer'
 import SearchBar from '../components/SearchBar'
+import ImageUpload from '../components/ImageUpload'
 import '../App.css'
 
 function BookList() {
@@ -13,14 +14,15 @@ function BookList() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPrice, setFilterPrice] = useState('all')
   const [sortBy, setSortBy] = useState('name')
+  const [imageFile, setImageFile] = useState(null)
 
-  // ✅ Infinite Scroll Hook
+  // ✅ Infinite Scroll
   const { ref, inView } = useInView({
     threshold: 0.1,
     triggerOnce: false,
   })
 
-  // ✅ React Query Infinite Query
+  // ✅ React Query
   const {
     data,
     isLoading,
@@ -30,32 +32,33 @@ function BookList() {
     error,
   } = useInfiniteBooks()
 
-  // 🔄 যখন শেষ আইটেম ভিউতে আসে তখন নতুন পেজ লোড করুন
   useEffect(() => {
     if (inView && hasNextPage && !isFetchingNextPage) {
       fetchNextPage()
     }
   }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage])
 
-  // 📚 সব বই সংগ্রহ করুন (সব পেজ থেকে)
   const allBooks = useMemo(() => {
     return data?.pages?.flatMap((page) => page.books) || []
   }, [data])
 
   const totalBooks = data?.pages?.[0]?.totalCount || 0
 
-  // React Hook Form
+  // ✅ React Hook Form
   const { 
     register, 
     handleSubmit, 
     reset, 
+    setValue,
+    watch,
     formState: { errors, isSubmitting } 
   } = useForm({
     resolver: zodResolver(bookSchema),
     defaultValues: {
       book_name: '',
       price: '',
-      description: ''
+      description: '',
+      cover_image: null
     }
   })
 
@@ -63,20 +66,18 @@ function BookList() {
   const updateBook = useUpdateBook()
   const deleteBook = useDeleteBook()
 
-  // ✅ Search, Filter & Sort Logic
+  // ✅ Search, Filter & Sort
   const filteredAndSortedBooks = useMemo(() => {
     if (!allBooks) return []
 
     let result = [...allBooks]
 
-    // 🔍 Search
     if (searchTerm.trim()) {
       result = result.filter(book =>
         book.book_name.toLowerCase().includes(searchTerm.toLowerCase().trim())
       )
     }
 
-    // 🏷️ Price Filter
     if (filterPrice !== 'all') {
       result = result.filter(book => {
         const price = parseFloat(book.price)
@@ -87,7 +88,6 @@ function BookList() {
       })
     }
 
-    // 📊 Sort
     if (sortBy === 'name') {
       result.sort((a, b) => a.book_name.localeCompare(b.book_name))
     } else if (sortBy === 'name_desc') {
@@ -101,18 +101,27 @@ function BookList() {
     return result
   }, [allBooks, searchTerm, filterPrice, sortBy])
 
-  // ➕ বই যোগ/আপডেট
+  // 📝 ফর্ম সাবমিট
   const onSubmit = async (data) => {
+    const formData = {
+      book_name: data.book_name,
+      price: data.price,
+      description: data.description,
+      cover_image: imageFile // ✅ ছবি ফাইল
+    }
+
     if (editingId) {
       await updateBook.mutateAsync({
         id: editingId,
-        data: data
+        data: formData
       })
       setEditingId(null)
     } else {
-      await createBook.mutateAsync(data)
+      await createBook.mutateAsync(formData)
     }
+    
     reset()
+    setImageFile(null)
   }
 
   // ✏️ এডিট
@@ -122,6 +131,7 @@ function BookList() {
       price: book.price,
       description: book.description
     })
+    setImageFile(null)
     setEditingId(book.id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -136,6 +146,7 @@ function BookList() {
   // ❌ এডিট ক্যানসেল
   const cancelEdit = () => {
     setEditingId(null)
+    setImageFile(null)
     reset()
   }
 
@@ -149,13 +160,18 @@ function BookList() {
     return <div className="error">❌ {error.message}</div>
   }
 
+  // 📸 ইমেজ ইউআরএল
+  const getImageUrl = (book) => {
+    return book.cover_image_url || book.cover_image || null
+  }
+
   return (
     <div className="app-container">
       <Toaster position="top-right" />
       
       <h1>📚 আমার বইয়ের লাইব্রেরি</h1>
       
-      {/* 📝 Form */}
+      {/* 📝 Form with Image Upload */}
       <div className="form-container">
         <h2>{editingId ? '✏️ বই আপডেট করুন' : '➕ নতুন বই যোগ করুন'}</h2>
         
@@ -198,6 +214,16 @@ function BookList() {
             {errors.description && (
               <p className="error-text">{errors.description.message}</p>
             )}
+          </div>
+          
+          {/* ✅ Image Upload */}
+          <div className="form-group">
+            <label>বইয়ের কভার ছবি</label>
+            <ImageUpload
+              value={imageFile}
+              onChange={setImageFile}
+              error={errors.cover_image?.message}
+            />
           </div>
           
           <div className="button-group">
@@ -247,36 +273,59 @@ function BookList() {
         ) : (
           <>
             <div className="books-grid">
-              {filteredAndSortedBooks.map((book, index) => (
-                <div 
-                  key={book.id || index} 
-                  className="book-card"
-                  ref={index === filteredAndSortedBooks.length - 1 ? ref : null}
-                >
-                  <h3>{book.book_name}</h3>
-                  <p className="price">💰 ৳{book.price}</p>
-                  <p className="description">{book.description}</p>
-                  <div className="card-actions">
-                    <button 
-                      className="btn-edit" 
-                      onClick={() => handleEdit(book)}
-                      disabled={deleteBook.isPending}
-                    >
-                      ✏️ এডিট
-                    </button>
-                    <button 
-                      className="btn-delete" 
-                      onClick={() => handleDelete(book.id)}
-                      disabled={deleteBook.isPending}
-                    >
-                      {deleteBook.isPending ? '⏳' : '🗑️ ডিলিট'}
-                    </button>
+              {filteredAndSortedBooks.map((book, index) => {
+                const imageUrl = getImageUrl(book)
+                return (
+                  <div 
+                    key={book.id || index} 
+                    className="book-card"
+                    ref={index === filteredAndSortedBooks.length - 1 ? ref : null}
+                  >
+                    // ✅ Book Card
+                    <div className="book-image">
+                        {getImageUrl(book) ? (
+                            <img 
+                                src={getImageUrl(book)} 
+                                alt={book.book_name}
+                                className="book-cover"
+                                onError={(e) => {
+                                    // ❌ ইমেজ লোড না হলে প্লেসহোল্ডার দেখান
+                                    e.target.style.display = 'none'
+                                    e.target.parentElement.innerHTML = '<div class="book-cover-placeholder"><span>📚</span></div>'
+                                }}
+                            />
+                        ) : (
+                            <div className="book-cover-placeholder">
+                                <span>📚</span>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <h3>{book.book_name}</h3>
+                    <p className="price">💰 ৳{book.price}</p>
+                    <p className="description">{book.description}</p>
+                    <div className="card-actions">
+                      <button 
+                        className="btn-edit" 
+                        onClick={() => handleEdit(book)}
+                        disabled={deleteBook.isPending}
+                      >
+                        ✏️ এডিট
+                      </button>
+                      <button 
+                        className="btn-delete" 
+                        onClick={() => handleDelete(book.id)}
+                        disabled={deleteBook.isPending}
+                      >
+                        {deleteBook.isPending ? '⏳' : '🗑️ ডিলিট'}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
             
-            {/* ⏳ Loading Indicator (Infinite Scroll) */}
+            {/* ⏳ Loading More */}
             {isFetchingNextPage && (
               <div className="loading-more">
                 <div className="spinner"></div>

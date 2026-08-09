@@ -17,7 +17,7 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error)
 )
 
-// 📚 সব বই fetch (Infinite Scroll এর জন্য)
+// 📚 সব বই fetch
 const fetchBooks = async ({ pageParam = 1 }) => {
   const response = await axios.get(`${API_URL}?page=${pageParam}`)
   return {
@@ -27,15 +27,43 @@ const fetchBooks = async ({ pageParam = 1 }) => {
   }
 }
 
-// ➕ নতুন বই যোগ
+// ➕ নতুন বই যোগ (FormData সহ)
 const createBook = async (bookData) => {
-  const response = await axios.post(API_URL, bookData)
+  const formData = new FormData()
+  formData.append('book_name', bookData.book_name)
+  formData.append('price', bookData.price)
+  formData.append('description', bookData.description || '')
+  
+  // ✅ ছবি থাকলে যোগ করুন
+  if (bookData.cover_image && bookData.cover_image instanceof File) {
+    formData.append('cover_image', bookData.cover_image)
+  }
+  
+  const response = await axios.post(API_URL, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
   return response.data
 }
 
-// ✏️ বই আপডেট
+// ✏️ বই আপডেট (FormData সহ)
 const updateBook = async ({ id, data }) => {
-  const response = await axios.put(API_DETAIL_URL(id), data)
+  const formData = new FormData()
+  formData.append('book_name', data.book_name)
+  formData.append('price', data.price)
+  formData.append('description', data.description || '')
+  
+  // ✅ নতুন ছবি থাকলে যোগ করুন
+  if (data.cover_image && data.cover_image instanceof File) {
+    formData.append('cover_image', data.cover_image)
+  }
+  
+  const response = await axios.put(API_DETAIL_URL(id), formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
   return response.data
 }
 
@@ -45,7 +73,7 @@ const deleteBook = async (id) => {
   return id
 }
 
-// 🔥 Custom Hook: Infinite Scroll এর জন্য
+// 🔥 Custom Hook: Infinite Books
 export const useInfiniteBooks = () => {
   return useInfiniteQuery({
     queryKey: ['books'],
@@ -55,7 +83,7 @@ export const useInfiniteBooks = () => {
   })
 }
 
-// 🔥 Custom Hook: নতুন বই যোগ
+// 🔥 Custom Hook: Create Book
 export const useCreateBook = () => {
   const queryClient = useQueryClient()
   
@@ -66,13 +94,13 @@ export const useCreateBook = () => {
       toast.success('✅ বই সফলভাবে যোগ হয়েছে!')
     },
     onError: (error) => {
-      toast.error('❌ বই যোগ করতে সমস্যা হয়েছে')
+      toast.error(error.response?.data?.cover_image?.[0] || '❌ বই যোগ করতে সমস্যা হয়েছে')
       console.error(error)
     }
   })
 }
 
-// 🔥 Custom Hook: বই আপডেট
+// 🔥 Custom Hook: Update Book
 export const useUpdateBook = () => {
   const queryClient = useQueryClient()
   
@@ -89,7 +117,7 @@ export const useUpdateBook = () => {
   })
 }
 
-// 🔥 Custom Hook: বই ডিলিট
+// 🔥 Custom Hook: Delete Book
 export const useDeleteBook = () => {
   const queryClient = useQueryClient()
   
@@ -100,7 +128,7 @@ export const useDeleteBook = () => {
       toast.success('✅ বই সফলভাবে ডিলিট হয়েছে!')
     },
     onError: (error) => {
-      toast.error('❌ বই ডিলিট করতে 문제 হয়েছে')
+      toast.error('❌ বই ডিলিট করতে সমস্যা হয়েছে')
       console.error(error)
     }
   })
