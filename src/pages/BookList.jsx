@@ -7,6 +7,7 @@ import { Toaster } from 'react-hot-toast'
 import { useInView } from 'react-intersection-observer'
 import SearchBar from '../components/SearchBar'
 import ImageUpload from '../components/ImageUpload'
+import BookModal from '../components/BookModal'
 import '../App.css'
 
 function BookList() {
@@ -15,14 +16,29 @@ function BookList() {
   const [filterPrice, setFilterPrice] = useState('all')
   const [sortBy, setSortBy] = useState('name')
   const [imageFile, setImageFile] = useState(null)
+  const [selectedBook, setSelectedBook] = useState(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
 
-  // ✅ Infinite Scroll
   const { ref, inView } = useInView({
     threshold: 0.1,
     triggerOnce: false,
   })
 
-  // ✅ React Query
+  // ✅ React Hook Form
+  const { 
+    register, 
+    handleSubmit, 
+    reset, 
+    formState: { errors, isSubmitting } 
+  } = useForm({
+    resolver: zodResolver(bookSchema),
+    defaultValues: {
+      book_name: '',
+      price: '',
+      description: '',
+    }
+  })
+
   const {
     data,
     isLoading,
@@ -31,6 +47,10 @@ function BookList() {
     hasNextPage,
     error,
   } = useInfiniteBooks()
+
+  const createBook = useCreateBook()
+  const updateBook = useUpdateBook()
+  const deleteBook = useDeleteBook()
 
   useEffect(() => {
     if (inView && hasNextPage && !isFetchingNextPage) {
@@ -43,28 +63,6 @@ function BookList() {
   }, [data])
 
   const totalBooks = data?.pages?.[0]?.totalCount || 0
-
-  // ✅ React Hook Form
-  const { 
-    register, 
-    handleSubmit, 
-    reset, 
-    setValue,
-    watch,
-    formState: { errors, isSubmitting } 
-  } = useForm({
-    resolver: zodResolver(bookSchema),
-    defaultValues: {
-      book_name: '',
-      price: '',
-      description: '',
-      cover_image: null
-    }
-  })
-
-  const createBook = useCreateBook()
-  const updateBook = useUpdateBook()
-  const deleteBook = useDeleteBook()
 
   // ✅ Search, Filter & Sort
   const filteredAndSortedBooks = useMemo(() => {
@@ -101,40 +99,49 @@ function BookList() {
     return result
   }, [allBooks, searchTerm, filterPrice, sortBy])
 
-  // 📝 ফর্ম সাবমিট
+  // ✅ ফর্ম সাবমিট - সব ফিল্ড ক্লিয়ার হবে
   const onSubmit = async (data) => {
     const formData = {
       book_name: data.book_name,
       price: data.price,
       description: data.description,
-      cover_image: imageFile // ✅ ছবি ফাইল
+      cover_image: imageFile
     }
 
-    if (editingId) {
-      await updateBook.mutateAsync({
-        id: editingId,
-        data: formData
-      })
-      setEditingId(null)
-    } else {
-      await createBook.mutateAsync(formData)
+    try {
+      if (editingId) {
+        // ✏️ আপডেট
+        await updateBook.mutateAsync({
+          id: editingId,
+          data: formData
+        })
+        setEditingId(null)
+      } else {
+        // ➕ নতুন যোগ
+        await createBook.mutateAsync(formData)
+      }
+      
+      // ✅ সব ফিল্ড ক্লিয়ার করুন (ইমেজ সহ)
+      reset() // ফর্ম রিসেট
+      setImageFile(null) // ইমেজ ফিল্ড ক্লিয়ার
+      
+    } catch (error) {
+      console.error('Error:', error)
     }
-    
-    reset()
-    setImageFile(null)
   }
 
-  // ✏️ এডিট
+  // ✏️ এডিট (ফর্মে ডেটা সেট করুন)
   const handleEdit = (book) => {
     reset({
       book_name: book.book_name,
       price: book.price,
       description: book.description
     })
-    setImageFile(null)
+    setImageFile(null) // ইমেজ ফিল্ড ক্লিয়ার
     setEditingId(book.id)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
 
   // 🗑️ ডিলিট
   const handleDelete = (id) => {
@@ -146,8 +153,25 @@ function BookList() {
   // ❌ এডিট ক্যানসেল
   const cancelEdit = () => {
     setEditingId(null)
-    setImageFile(null)
-    reset()
+    setImageFile(null) // ইমেজ ফিল্ড ক্লিয়ার
+    reset() // ফর্ম রিসেট
+  }
+
+  // ✅ Book Card Click
+  const handleBookClick = (book) => {
+    setSelectedBook(book)
+    setIsModalOpen(true)
+  }
+
+  // ✅ Close Modal
+  const closeModal = () => {
+    setIsModalOpen(false)
+    setSelectedBook(null)
+  }
+
+  // 📸 ইমেজ ইউআরএল
+  const getImageUrl = (book) => {
+    return book.cover_image_url || book.cover_image || null
   }
 
   // ⏳ লোডিং
@@ -160,18 +184,13 @@ function BookList() {
     return <div className="error">❌ {error.message}</div>
   }
 
-  // 📸 ইমেজ ইউআরএল
-  const getImageUrl = (book) => {
-    return book.cover_image_url || book.cover_image || null
-  }
-
   return (
     <div className="app-container">
       <Toaster position="top-right" />
       
       <h1>📚 আমার বইয়ের লাইব্রেরি</h1>
       
-      {/* 📝 Form with Image Upload */}
+      {/* 📝 Form */}
       <div className="form-container">
         <h2>{editingId ? '✏️ বই আপডেট করুন' : '➕ নতুন বই যোগ করুন'}</h2>
         
@@ -280,31 +299,32 @@ function BookList() {
                     key={book.id || index} 
                     className="book-card"
                     ref={index === filteredAndSortedBooks.length - 1 ? ref : null}
+                    onClick={() => handleBookClick(book)}
+                    style={{ cursor: 'pointer' }}
                   >
-                    // ✅ Book Card
                     <div className="book-image">
-                        {getImageUrl(book) ? (
-                            <img 
-                                src={getImageUrl(book)} 
-                                alt={book.book_name}
-                                className="book-cover"
-                                onError={(e) => {
-                                    // ❌ ইমেজ লোড না হলে প্লেসহোল্ডার দেখান
-                                    e.target.style.display = 'none'
-                                    e.target.parentElement.innerHTML = '<div class="book-cover-placeholder"><span>📚</span></div>'
-                                }}
-                            />
-                        ) : (
-                            <div className="book-cover-placeholder">
-                                <span>📚</span>
-                            </div>
-                        )}
+                      {imageUrl ? (
+                        <img 
+                          src={imageUrl} 
+                          alt={book.book_name}
+                          className="book-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none'
+                            e.target.parentElement.innerHTML = '<div class="book-cover-placeholder"><span>📚</span></div>'
+                          }}
+                        />
+                      ) : (
+                        <div className="book-cover-placeholder">
+                          <span>📚</span>
+                        </div>
+                      )}
                     </div>
                     
                     <h3>{book.book_name}</h3>
                     <p className="price">💰 ৳{book.price}</p>
                     <p className="description">{book.description}</p>
-                    <div className="card-actions">
+                    
+                    <div className="card-actions" onClick={(e) => e.stopPropagation()}>
                       <button 
                         className="btn-edit" 
                         onClick={() => handleEdit(book)}
@@ -342,6 +362,13 @@ function BookList() {
           </>
         )}
       </div>
+      
+      {/* ✅ Book Detail Modal */}
+      <BookModal
+        book={selectedBook}
+        isOpen={isModalOpen}
+        onClose={closeModal}
+      />
     </div>
   )
 }

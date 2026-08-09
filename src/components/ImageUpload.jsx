@@ -1,8 +1,18 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 
 function ImageUpload({ value, onChange, error }) {
   const [preview, setPreview] = useState(null)
   const fileInputRef = useRef(null)
+
+  // ✅ যখন value পরিবর্তন হয় (null হলে) preview ক্লিয়ার করুন
+  useEffect(() => {
+    if (value === null || value === undefined) {
+      setPreview(null)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }, [value])
 
   const handleFileChange = (e) => {
     const file = e.target.files[0]
@@ -32,7 +42,7 @@ function ImageUpload({ value, onChange, error }) {
 
   const handleRemoveImage = () => {
     setPreview(null)
-    onChange(null)
+    onChange(null) // ✅ null পাঠান
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
